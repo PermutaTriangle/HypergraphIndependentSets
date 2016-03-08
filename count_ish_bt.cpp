@@ -6,6 +6,7 @@
 #include <sstream>
 #include <cstring>
 #include <set>
+#include <algorithm>
 using namespace std;
 typedef long long ll;
 typedef pair<int, int> ii;
@@ -21,23 +22,38 @@ struct node {
     node *parent;
     node **children;
     bool end;
+    int mxchild;
     node(node *par) {
         parent = par;
         children = new node*[n];
         memset(children, 0, n * sizeof(node*));
         end = false;
+        mxchild = -1;
     }
 };
 
-int *res;
+ll **nck, *res;
 void bt(int at, int cnt, vector<node*> nds) {
-    if (at == n) {
-        res[cnt]++;
+    int idx = 0;
+    while (idx < size(nds)) {
+        if (nds[idx]->mxchild < at) {
+            swap(nds[idx], nds[size(nds)-1]);
+            nds.pop_back();
+        } else {
+            idx++;
+        }
+    }
+
+    if (size(nds) == 0) {
+        int left = n-at;
+        for (int add = 0; add <= left; add++) {
+            res[cnt + add] += nck[left][add];
+        }
         return;
     }
-    // TODO: If size(nds) == 0, then quickly evaluate rest
+
     bt(at+1, cnt, nds);
-    vector<node*> nxt(nds); // TODO: Throw out nodes that have no chance...
+    vector<node*> nxt(nds);
     rep(i,0,size(nds)) {
         if (nds[i]->children[at]) {
             if (nds[i]->children[at]->end) {
@@ -56,10 +72,19 @@ int main() {
     int m;
     ss >> n >> m;
 
+    nck = new ll*[n+1];
+    rep(i,0,n+1) {
+        nck[i] = new ll[i+1];
+        nck[i][0] = nck[i][i] = 1;
+        rep(j,1,i) {
+            nck[i][j] = nck[i-1][j-1] + nck[i-1][j];
+        }
+    }
+
     node *root = new node(NULL);
-
-    // TODO: Relabel vertices to maximize use of quick evaluation
-
+    vector<ii> ecnt(n);
+    rep(i,0,n) ecnt[i].second = i;
+    vector<set<int> > paths;
     rep(i,0,m) {
         getline(cin, line);
         ss.str(line);
@@ -69,24 +94,49 @@ int main() {
         while (ss >> cur) {
             path.insert(cur);
         }
+        paths.push_back(path);
+        iter(it,path) {
+            ecnt[*it].first++;
+        }
+    }
+
+    sort(ecnt.rbegin(), ecnt.rend());
+    // sort(ecnt.begin(), ecnt.end());
+    vi newidx(n);
+    rep(i,0,size(ecnt)) {
+        newidx[ecnt[i].second] = i;
+    }
+
+    rep(i,0,size(paths)) {
+        set<int> path;
+        iter(it,paths[i]) {
+            path.insert(newidx[*it]);
+        }
         node *at = root;
         iter(it,path) {
             if (!at->children[*it]) {
                 at->children[*it] = new node(at);
             }
+            at->mxchild = max(at->mxchild, *it);
             at = at->children[*it];
         }
         at->end = true;
     }
 
-    res = new int[n+1];
-    memset(res, 0, sizeof(int)*(n+1));
+    // TODO: Relabel vertices to maximize use of quick evaluation
+
+    res = new ll[n+1];
+    memset(res, 0, sizeof(ll)*(n+1));
     bt(0, 0, vector<node*>(1,root));
 
     rep(i,0,n+1) {
         cout << res[i] << endl;
     }
 
+    rep(i,0,n+1) {
+        delete[] nck[i];
+    }
+    delete[] nck;
     delete[] res;
     return 0;
 }
